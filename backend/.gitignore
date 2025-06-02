@@ -175,3 +175,6 @@ state.json
 *.db
 
 .env.scripts
+
+# CA
+*.crt
