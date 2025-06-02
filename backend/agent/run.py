@@ -4,7 +4,6 @@ import re
 from uuid import uuid4
 from typing import Optional
 
-# from agent.tools.message_tool import MessageTool
 from agent.tools.message_tool import MessageTool
 from agent.tools.sb_deploy_tool import SandboxDeployTool
 from agent.tools.sb_expose_tool import SandboxExposeTool
@@ -19,14 +18,13 @@ from agent.tools.sb_files_tool import SandboxFilesTool
 from agent.tools.sb_browser_tool import SandboxBrowserTool
 from agent.tools.data_providers_tool import DataProvidersTool
 from agent.tools.expand_msg_tool import ExpandMessageTool
-from agent.prompt import get_system_prompt
+from agent.prompt import get_system_prompt, get_instruction_prompt
 from utils.logger import logger
 from utils.auth_utils import get_account_id_from_thread
 from services.billing import check_billing_status
 from agent.tools.sb_vision_tool import SandboxVisionTool
 from services.langfuse import langfuse
 from langfuse.client import StatefulTraceClient
-from services.langfuse import langfuse
 from agent.gemini_prompt import get_gemini_system_prompt
 
 load_dotenv()
@@ -120,7 +118,7 @@ async def run_agent(
             "role": "system",
             "content": get_gemini_system_prompt(),
         }  # example included
-    elif "anthropic" not in model_name.lower():
+    elif "anthropic" not in model_name.lower():  # openai
         # Only include sample response if the model name does not contain "anthropic"
         sample_response_path = os.path.join(
             os.path.dirname(__file__), "sample_responses/1.txt"
@@ -152,6 +150,8 @@ async def run_agent(
     )
     if latest_user_message.data and len(latest_user_message.data) > 0:
         data = json.loads(latest_user_message.data[0]["content"])
+        user_query = data["content"]
+        step_instruction = get_instruction_prompt(user_query)
         trace.update(input=data["content"])
 
     while continue_execution and iteration_count < max_iterations:
@@ -160,8 +160,9 @@ async def run_agent(
 
         # 최신 todo.md 읽기
         todo_content = None
-        if os.path.exists(os.path.join("./workspace", "todo.md")):
-            with open(os.path.join("./workspace", "todo.md"), "r") as file:
+        todo_path = os.path.join(os.path.dirname(__file__), "workspace/todo.md")
+        if os.path.exists(todo_path):
+            with open(todo_path, "r") as file:
                 todo_content = file.read()
 
         # Billing check on each iteration - still needed within the iterations
@@ -203,6 +204,14 @@ async def run_agent(
         # ---- Temporary Message Handling (Browser State & Image Context) ----
         temporary_message = None
         temp_message_content_list = []  # List to hold text/image blocks / line 330에서 user message로 추가됨
+
+        # 사용자 쿼리에 대한 절차 암묵지 추가
+        temp_message_content_list.append(
+            {
+                "type": "text",
+                "text": f"\n\n계획을 세울 때는 사용자 쿼리와 더불어 다음과 같은 절차 암묵지를 반드시 참조해서 계획을 세우세요.\n\n{step_instruction}",
+            }
+        )
 
         # 현재 step에 대한 context 추가
         if todo_content:

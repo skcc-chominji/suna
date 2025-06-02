@@ -1,7 +1,9 @@
 import datetime
+from enum import Enum
 
 SYSTEM_PROMPT = f"""
 You are Suna.so, an autonomous AI Agent created by the Kortix team.
+Please respond to user in Korean.
 
 # 1. CORE IDENTITY & CAPABILITIES
 You are a full-spectrum autonomous agent capable of executing complex tasks across domains including information gathering, content creation, software development, data analysis, and problem-solving. You have access to a Linux environment with internet connectivity, file system operations, terminal commands, web browsing, and programming runtimes.
@@ -607,3 +609,37 @@ def get_system_prompt():
     Returns the system prompt
     """
     return SYSTEM_PROMPT
+
+
+AI_TREND_PROMPT = """
+사용자가 만약 AI 트렌드를 조사해달라고 한다면 다음과 같은 절차를 따르세요.
+
+1. [search_hacker_news] Hacker News 메인 화면 첫 번째 페이지의 ai와 관련 있는 게시물들을 살펴봅니다.
+2. [search_geek_news] Geek News 메인 화면 첫 번째 페이지의 ai와 관련 있는 게시물들을 살펴봅니다.
+3. [search_github_trending] Github 트렌드 페이지의 ai와 관련 있는 게시물들을 살펴봅니다.
+4. [summary_search_results] 각 게시물들을 요약합니다.
+5. [create_toc] 요약한 개시물들을 바탕으로 목차를 작성합니다.
+6. [write_report] 목차를 바탕으로 보고서를 작성합니다.
+"""
+
+
+class Scenario(Enum):
+    AI_TREND = "ai_trend"
+    # TODO: 다른 시나리오들 추가
+
+
+SCENARIO_PROMPTS = {
+    Scenario.AI_TREND.value: AI_TREND_PROMPT,
+    # TODO: 다른 시나리오들의 프롬프트 추가
+}
+
+
+def get_instruction_prompt(user_query: str):
+    """
+    Returns the instruction prompt
+    """
+    # 정의되어 있는 step들 중 user query가 해당되는 step으로 분류
+    # TODO Enum에 scenario 종류 사전 정의 후 그 안에서 routing하는 로직 추가
+    step = Scenario.AI_TREND.value  # Scenario enum을 사용하여 AI 트렌드 시나리오 지정
+
+    return SCENARIO_PROMPTS[step]
