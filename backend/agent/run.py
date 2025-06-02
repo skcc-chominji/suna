@@ -154,19 +154,15 @@ async def run_agent(
         data = json.loads(latest_user_message.data[0]["content"])
         trace.update(input=data["content"])
 
-    # todo.md parsing 함수
-    def parse_steps_from_md(md_content):
-        return re.findall(r"- \[ \] (.+)", md_content)
-
-    current_step = 0
-    if os.path.exists(os.path.join("workspace", "todo.md")):
-        with open(os.path.join("workspace", "todo.md"), "r") as file:
-            todo_content = file.read()
-            steps = parse_steps_from_md(todo_content)
-
     while continue_execution and iteration_count < max_iterations:
         iteration_count += 1
         logger.info(f"🔄 Running iteration {iteration_count} of {max_iterations}...")
+
+        # 최신 todo.md 읽기
+        todo_content = None
+        if os.path.exists(os.path.join("./workspace", "todo.md")):
+            with open(os.path.join("./workspace", "todo.md"), "r") as file:
+                todo_content = file.read()
 
         # Billing check on each iteration - still needed within the iterations
         can_run, message, subscription = await check_billing_status(client, account_id)
@@ -209,12 +205,11 @@ async def run_agent(
         temp_message_content_list = []  # List to hold text/image blocks / line 330에서 user message로 추가됨
 
         # 현재 step에 대한 context 추가
-        if steps:
-            current_task = steps[current_step]
+        if todo_content:
             temp_message_content_list.append(
                 {
                     "type": "text",
-                    "text": f"이번 step: {current_task}\n이 step을 수행하는 데 필요한 tool call을 생성하세요.",
+                    "text": f"아래는 최신 todo.md입니다:\n\n{todo_content}\n\n이 파일을 참고해서 남은 step을 효율적으로 처리하세요.",
                 }
             )
 
@@ -453,8 +448,6 @@ async def run_agent(
                                             f"Agent used XML tool: {xml_tool}"
                                         ),
                                     )
-                                    # tool call이 성공적으로 끝나면 다음 step으로 이동
-                                    current_step += 1
 
                         except json.JSONDecodeError:
                             # Handle cases where content might not be valid JSON
