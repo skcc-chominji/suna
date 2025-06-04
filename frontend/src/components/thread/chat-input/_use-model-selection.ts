@@ -158,6 +158,21 @@ export const MODELS = {
     lowQuality: true,
     description: 'Qwen3 - Alibaba\'s powerful multilingual language model'
   },
+  // 🆕 Azure OpenAI 모델들 추가
+  'azure/gpt-4o': { 
+    tier: 'free', 
+    priority: 98,
+    recommended: true,
+    lowQuality: false,
+    description: 'Azure GPT-4o - Microsoft Azure hosted OpenAI model with enhanced performance'
+  },
+  'azure/gpt-4o-mini': { 
+    tier: 'free', 
+    priority: 96,
+    recommended: false,
+    lowQuality: false,
+    description: 'Azure GPT-4o Mini - Cost-effective Azure hosted OpenAI model'
+  },
 };
 
 // Model tier definitions
