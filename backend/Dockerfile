@@ -60,3 +60,22 @@ CMD ["sh", "-c", "gunicorn api:app \
      --capture-output \
      --enable-stdio-inheritance \
      --threads $THREADS"]
+
+# 인증서 설정을 위해 루트 권한 획득
+USER root
+
+# 루트 인증서 복사
+COPY SK_SSL.crt /usr/local/share/ca-certificates/SK_SSL.crt
+
+# 시스템 CA 인증서 업데이트
+RUN update-ca-certificates
+
+# certifi가 참조하는 경로를 시스템 CA로 링크
+RUN ln -sf /etc/ssl/certs/ca-certificates.crt $(python3 -m certifi)
+
+# appuser로 변경
+USER appuser
+
+# 환경 변수도 같이 설정
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
