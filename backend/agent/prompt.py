@@ -1,5 +1,6 @@
 import datetime
 from enum import Enum
+import time
 
 SYSTEM_PROMPT = f"""
 You are Suna.so, an autonomous AI Agent created by the Kortix team.
@@ -443,8 +444,7 @@ The todo.md file is your primary working document and action plan:
     - 만약 사용자 쿼리에 '계획', 'plan', '절차', '방법', '단계', '프로세스', 'flow', 'procedure', 'methodology' 등  
       절차적/계획적 의미의 키워드가 포함되어 있다면,  
       반드시 해당 쿼리의 내용을 todo.md의 planning(계획) 단계에 반영해야 한다.  
-    - 사용자가 제시한 계획/절차/단계/방법론을 todo.md의 각 step 또는 섹션에 명확히 녹여서 작성할 것.  
-    - 사용자의 계획/절차가 불명확하다면, 'ask' tool을 사용해 추가 설명을 요청할 것.
+    - 사용자가 제시한 계획/절차/단계/방법론을 todo.md의 각 step 또는 섹션에 명확히 녹여서 작성할 것.
     - 이 지침을 어기면 critical error로 간주한다.
 
 ## 5.3 EXECUTION PHILOSOPHY
@@ -611,35 +611,89 @@ def get_system_prompt():
     return SYSTEM_PROMPT
 
 
+DEFAULT_PROMPT = """
+사용자가 요청한 내용을 참고하여 적절한 툴을 선택하여 작업을 진행하세요.
+"""
+
 AI_TREND_PROMPT = """
 사용자가 만약 AI 트렌드를 조사해달라고 한다면 다음과 같은 절차를 따르세요.
 
-1. [search_hacker_news] Hacker News 메인 화면 첫 번째 페이지의 ai와 관련 있는 게시물들을 살펴봅니다.
-2. [search_geek_news] Geek News 메인 화면 첫 번째 페이지의 ai와 관련 있는 게시물들을 살펴봅니다.
-3. [search_github_trending] Github 트렌드 페이지의 ai와 관련 있는 게시물들을 살펴봅니다.
-4. [summary_search_results] 각 게시물들을 요약합니다.
-5. [create_toc] 요약한 개시물들을 바탕으로 목차를 작성합니다.
-6. [write_report] 목차를 바탕으로 보고서를 작성합니다.
+1. [search_hacker_news] Hacker News에서 ai와 관련 있는 게시물들을 검색합니다.
+2. [search_geek_news] Geek News에서 ai와 관련 있는 게시물들을 검색합니다.
+3. [write_report] 요약한 게시물들을 바탕으로 논리적 흐름을 가지도록 목차를 구성하고, 목차를 바탕으로 보고서를 작성하세요. 보고서에는 게시물 제목, 게시물의 핵심 내용 (최소 4문장 이상), (출처) 게시물 원문 URL을 포함하여 요약한 내용이 반드시 포함되어야 합니다.
 """
+
+STOCK_PROMPT = """
+사용자가 주식보고서를 작성해달라고 한다면 향후 1달간 예측보고서를 아래 가이드를 참고하여 작성하세요. 
+- Yahoo Finance, Nasdaq, MarketWatch 사이트를 활용하여 최근 3~6개월간 주식 지수를 시계열 데이터로 수집할 수 있습니다.
+- FRED, BLS, BEA 사이트를 활용하여 거시 경제 지표를 시계열 데이터로 수집할 수 있어요.
+- WSJ, CNBC, NYT, Forbes, Bloomberg 사이트의 최근 2~4주간 주식 관련 뉴스 및 전문가 코멘트를 수집할 수 있습니다.
+- 수집한 데이터를 바탕으로 기술적 분석은 pandas, scikit-learn, matplotlib을 활용할 수 있어요.(Yahoo Finance, Nasdaq, MarketWatch 수집데이터 활용)
+- 거시경제지표와 주식지수와의 상관관계를 분석하세요. (FRED, BLS, BEA 수집데이터 활용)
+- 주식 관련 기사 뉴스의 주요내용을 자세하게 요약하세요. (WSJ, CNBC, NYT, Forbes, Bloomberg 수집데이터 활용)
+- 분석 내용을 바탕으로 베이스라인 시나리오를 도출하세요.(현재 시장 추세를 기반으로 예측)
+- 경제 변수를 활용하여, 낙관/중립/비관 시나리오를 비교하고 다른 방향성에 대한 예측을 도출하세요.
+- 조건별 시나리오 테이블을 정리하세요.
+- 분석한 내용을 바탕으로 목차를 작성하세요.
+- 목차를 바탕으로 보고서를 작성하세요.
+
+다음은 참고 url입니다.
+Yahoo Finance: https://finance.yahoo.com/
+Nasdaq: https://www.nasdaq.com/
+MarketWatch : https://www.marketwatch.com/
+Wall Street Journal (WSJ) : https://www.wsj.com/
+CNBC : https://www.cnbc.com/
+New York Times : https://www.nytimes.com/
+Forbes : https://www.forbes.com/
+Bloomberg : https://www.bloomberg.com/
+FRED : https://fred.stlouisfed.org/
+US Bureau of Labor Statistics(BLS) : https://www.bls.gov/
+US Bureau of Economic Analysis(BEA) : https://www.bea.gov/
+"""
+
+TOOL_INSTRUCTION_PROMPT = {
+    "search_hacker_news": "AI 트렌드를 조사할 때는 반드시 browser_use 중에서도 web_search를 tool로 활용한다. hacker news 도메인은 'https://news.ycombinator.com/'이다. 보고서 작성에 용이하도록 반드시 최소 10개 이상의 게시물을 조회한다.",
+    "search_geek_news": "AI 트렌드를 조사할 때는 반드시 browser_use 중에서도 web_search를 tool로 활용한다.geek news 도메인은 'https://news.hada.io/'이다. 보고서 작성에 용이하도록 반드시 최소 10개 이상의 게시물을 조회한다.",
+    "write_report": f"""
+실제 보고서를 검색한 게시물들을 중심으로 내용을 작성합니다.
+내용 작성 후, 보고서 이름은 '보고서_{int(time.time())}.md'로 workspace에 저장한다.
+""",
+}
 
 
 class Scenario(Enum):
+    DEFAULT = "default"
     AI_TREND = "ai_trend"
+    STOCK = "stock"
     # TODO: 다른 시나리오들 추가
 
 
 SCENARIO_PROMPTS = {
+    Scenario.DEFAULT.value: DEFAULT_PROMPT,
     Scenario.AI_TREND.value: AI_TREND_PROMPT,
+    Scenario.STOCK.value: STOCK_PROMPT,
     # TODO: 다른 시나리오들의 프롬프트 추가
 }
 
 
-def get_instruction_prompt(user_query: str):
+def get_step_instruction(user_query: str):
     """
-    Returns the instruction prompt
+    Returns the step instruction prompt for the user query
     """
     # 정의되어 있는 step들 중 user query가 해당되는 step으로 분류
     # TODO Enum에 scenario 종류 사전 정의 후 그 안에서 routing하는 로직 추가
-    step = Scenario.AI_TREND.value  # Scenario enum을 사용하여 AI 트렌드 시나리오 지정
+    if "ai" in user_query.lower():
+        step = Scenario.AI_TREND.value
+    elif "주식" in user_query.lower():
+        step = Scenario.STOCK.value
+    else:
+        step = Scenario.DEFAULT.value
 
     return SCENARIO_PROMPTS[step]
+
+
+def get_tool_instruction():
+    """
+    Returns the tool instruction prompt
+    """
+    return TOOL_INSTRUCTION_PROMPT

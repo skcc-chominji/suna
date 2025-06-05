@@ -18,7 +18,7 @@ from agent.tools.sb_files_tool import SandboxFilesTool
 from agent.tools.sb_browser_tool import SandboxBrowserTool
 from agent.tools.data_providers_tool import DataProvidersTool
 from agent.tools.expand_msg_tool import ExpandMessageTool
-from agent.prompt import get_system_prompt, get_instruction_prompt
+from agent.prompt import get_system_prompt, get_step_instruction, get_tool_instruction
 from utils.logger import logger
 from utils.auth_utils import get_account_id_from_thread
 from services.billing import check_billing_status
@@ -151,19 +151,13 @@ async def run_agent(
     if latest_user_message.data and len(latest_user_message.data) > 0:
         data = json.loads(latest_user_message.data[0]["content"])
         user_query = data["content"]
-        step_instruction = get_instruction_prompt(user_query)
+        step_instruction = get_step_instruction(user_query)
+        tool_instruction = get_tool_instruction()
         trace.update(input=data["content"])
 
     while continue_execution and iteration_count < max_iterations:
         iteration_count += 1
         logger.info(f"🔄 Running iteration {iteration_count} of {max_iterations}...")
-
-        # 최신 todo.md 읽기
-        todo_content = None
-        todo_path = os.path.join(os.path.dirname(__file__), "workspace/todo.md")
-        if os.path.exists(todo_path):
-            with open(todo_path, "r") as file:
-                todo_content = file.read()
 
         # Billing check on each iteration - still needed within the iterations
         can_run, message, subscription = await check_billing_status(client, account_id)
@@ -213,14 +207,13 @@ async def run_agent(
             }
         )
 
-        # 현재 step에 대한 context 추가
-        if todo_content:
-            temp_message_content_list.append(
-                {
-                    "type": "text",
-                    "text": f"아래는 최신 todo.md입니다:\n\n{todo_content}\n\n이 파일을 참고해서 남은 step을 효율적으로 처리하세요.",
-                }
-            )
+        # # tool call에 대한 참조 암묵지 추가
+        # temp_message_content_list.append(
+        #     {
+        #         "type": "text",
+        #         "text": f"\n\ntool instruction에는 각 계획을 수행할 때 활용하는 tool 사용법에 대한 정보가 담겨있습니다. 계획을 세울 때 사용자 쿼리와 더불어 반드시 참고하여 활용하세요.\n\n{tool_instruction}",
+        #     }
+        # )
 
         # Get the latest browser_state message
         latest_browser_state_msg = (
